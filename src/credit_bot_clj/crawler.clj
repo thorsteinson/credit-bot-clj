@@ -15,8 +15,8 @@
 (defn enter-mfa-code [driver, code]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
-    (fill driver CODE-INPUT code))
-    (click driver CONTINUE-BTN))
+    (fill driver CODE-INPUT code)
+    (click driver CONTINUE-BTN)))
 
 (defn is-mfa-page? [driver]
   (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
@@ -61,7 +61,7 @@
     {:credit (parse-money-line credit-row)
      :checking (parse-money-line checking-row)}))
 
-(defn start-driver [& {:keys [debug?] :or {debug? true}}]
+(defn start-driver [& {:keys [debug?] :or {debug? false}}]
   (if debug?
     (boot-driver :chrome {:path "chromedriver.exe"})
-    (chrome)))
+    (headless)))
