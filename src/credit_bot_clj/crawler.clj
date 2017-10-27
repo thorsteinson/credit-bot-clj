@@ -37,7 +37,7 @@
     (click driver [ACCOUNT-SELECT {:tag "option" :index 2}])
     (click driver CONTINUE-BTN)))
 
-(defn nav-to-payment [driver amount]
+(defn exec-payment [driver amount]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
@@ -69,7 +69,7 @@
     (boot-driver :chrome {:path "chromedriver.exe"})
     (headless)))
 
-(defn make-crawler [user password & opts]
+(defn make-crawler
   ([user password]
     (make-crawler user password {:debug? false}))
   ([user password opts]
@@ -94,13 +94,21 @@
             (>! mfa-code-req :req)
             (log/info "REQUESTED MFA")
             (enter-mfa-code (:driver @state) (<! mfa-code-res))))
-        (<! finish-res)
+        (nav-to-credit (:driver @state))
+        (swap! state assoc :payment (extract-amounts (:driver @state)))
+        (>! transaction-req :trans-req) 
+        (log/info "Waiting for transaction approval response")
+        (<! transaction-res) 
+        (exec-payment (:driver @state)
+                      (get-in @state [:payment :credit]))
         (log/info "STOPPING CRAWLER")
         (quit (:driver @state))
         (reset! state init-state)
         (recur))
       {:start-req start-req
        :finish-res finish-res
+       :transaction-req transaction-req
+       :transaction-res transaction-res
        :mfa-code-res mfa-code-res
        :mfa-code-req mfa-code-req
        :state state})))
