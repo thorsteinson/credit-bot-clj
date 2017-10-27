@@ -70,14 +70,14 @@
     (headless)))
 
 (defn make-crawler [user password]
-  (let [start-req (chan)
-        finish-res (chan)
-        mfa-code-res (chan)
-        mfa-code-req (chan)
-        status-out (chan)
-        amount-out (chan)
-        transaction-req (chan)
-        transaction-res (chan)
+  (let [start-req (chan 1)
+        finish-res (chan 1)
+        mfa-code-res (chan 1)
+        mfa-code-req (chan 1)
+        status-out (chan 1)
+        amount-out (chan 1)
+        transaction-req (chan 1)
+        transaction-res (chan 1)
         init-state {:started false}
         state (atom init-state) ]
     (async/go-loop []
@@ -86,10 +86,10 @@
       (swap! state assoc :started true)
       (swap! state assoc :driver (start-driver))
       (login (:driver @state) user password)
-      (if (mfa-page? (:driver @state))
+      (while (mfa-page? (:driver @state))
         (do
-          (log/info "NEED MFA CODE")
           (>! mfa-code-req :req)
+          (log/info "REQUESTED MFA")
           (enter-mfa-code (:driver @state) (<! mfa-code-res))))
       (<! finish-res)
       (log/info "STOPPING CRAWLER")
