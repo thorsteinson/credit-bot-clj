@@ -1,6 +1,8 @@
 (ns credit-bot-clj.crawler
   (:require [etaoin.api :refer :all]
-   :require [etaoin.keys :as k]))
+            [etaoin.keys :as k]
+            [clojure.core.async :as async :refer [chan >!! <!! >! <! take! put!]]
+            [clojure.tools.logging :as log]))
 
 (defn login [driver, user, password]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
@@ -12,14 +14,15 @@
     (fill driver PASSWORD-INPUT password)
     (click driver LOGIN-BTN)))
 
-(defn enter-mfa-code [driver, code]
+(defn enter-mfa-code [driver code]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
     (fill driver CODE-INPUT code)
     (click driver CONTINUE-BTN)))
 
-(defn is-mfa-page? [driver]
+(defn mfa-page? [driver]
   (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
+    (wait 3)
     (= MFA-URL (get-url driver))))
 
 (defn nav-to-credit [driver]
@@ -65,3 +68,36 @@
   (if debug?
     (boot-driver :chrome {:path "chromedriver.exe"})
     (headless)))
+
+(defn make-crawler [user password]
+  (let [start-req (chan)
+        finish-res (chan)
+        mfa-code-res (chan)
+        mfa-code-req (chan)
+        status-out (chan)
+        amount-out (chan)
+        transaction-req (chan)
+        transaction-res (chan)
+        init-state {:started false}
+        state (atom init-state) ]
+    (async/go-loop []
+      (<! start-req)
+      (log/info "STARTING CRAWLER")
+      (swap! state assoc :started true)
+      (swap! state assoc :driver (start-driver))
+      (login (:driver @state) user password)
+      (if (mfa-page? (:driver @state))
+        (do
+          (log/info "NEED MFA CODE")
+          (>! mfa-code-req :req)
+          (enter-mfa-code (:driver @state) (<! mfa-code-res))))
+      (<! finish-res)
+      (log/info "STOPPING CRAWLER")
+      (quit (:driver @state))
+      (reset! state init-state)
+      (recur))
+    {:start-req start-req
+     :finish-res finish-res
+     :mfa-code-res mfa-code-res
+     :mfa-code-req mfa-code-req
+     :state state}))
