@@ -3,6 +3,11 @@
             [etaoin.keys :as k]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
+(defn mfa-page?! [driver]
+  (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
+    (wait 3)
+    (= MFA-URL (get-url driver))))
+
 (defn login! [driver, user, password]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
     (go driver LOGIN_URL))
@@ -11,18 +16,23 @@
         LOGIN-BTN {:id "ctlSignon_btnLogin"}]
     (fill driver USERNAME-INPUT user)
     (fill driver PASSWORD-INPUT password)
-    (click driver LOGIN-BTN)))
+    (click driver LOGIN-BTN)
+    ; There is also a bad login state that we should check for here
+    (if (mfa-page?! driver)
+      :mfa
+      :success)))
 
 (defn enter-mfa-code! [driver code]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
     (fill driver CODE-INPUT code)
-    (click driver CONTINUE-BTN)))
-
-(defn mfa-page?! [driver]
-  (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
-    (wait 3)
-    (= MFA-URL (get-url driver))))
+    (click driver CONTINUE-BTN)
+    (if (mfa-page?! driver)
+      :fail
+      ; Success should really be defined as on the payment page. Which we don't check for
+      ; We should have a function that waits for n secs and then returns the URL
+      ; for maximum flexibility
+      :success)))
 
 (defn nav-to-credit! [driver]
   (let [VISA-TABLE {:id "visaTable"}
@@ -34,7 +44,9 @@
                    {:tag "a"}])
     (click driver PAY-BTN)
     (click driver [ACCOUNT-SELECT {:tag "option" :index 2}])
-    (click driver CONTINUE-BTN)))
+    (click driver CONTINUE-BTN)
+    ; TODO: Add some type of check
+    :success))
 
 (defn exec-payment! [driver amount]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
@@ -46,11 +58,16 @@
     (fill driver OTHER-INPUT amount)
     (click driver [FREQ-SELECT {:tag "option" :index 2}])
     (click driver CONTINUE-BTN)
-    (click driver CONFIRM_BTN)))
+    (click driver CONFIRM_BTN)
+    ; TODO: Add some type of check
+    :success))
 
 (defn extract-amounts! [driver]
   (let [rows (query-all driver {:tag "tr"})
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
+    ; TODO: Add some type of check
+    ; Even though we return a response, it should be encapsulated in
+    ; something that can represent failure
     {:credit (parse-money-line credit-row)
      :checking (parse-money-line checking-row)}))
