@@ -9,35 +9,65 @@
     :success (assoc state :login login-update)
     (assoc state :error (str "Improper login update: " login-update))))
 
-(defn ensure-logged-in [f state]
-  (if (logged-in? state)
-    (f state)
-    (assoc state :error "Must be logged in")))
+(defn handle-error [f]
+  "Looks for an error key and prints that rather than executing the logic"
+  (fn [state & args]
+    (let [new-state (apply f state args)
+          error (:error state)]
+      (if error
+        (throw (Exeception. (str "Encountered error: " error)))
+        state))))
+
+(defn ensure-logged-in [f]
+  "Higher order function that writes error to state if the user isn't logged in"
+  (fn [state & args]
+    (if (logged-in? state)
+      (apply f state args)
+      (assoc state :error "Must be logged in"))))
 
 (defn mfa? [state]
   (= :mfa (:login state)))
 
-(defn nav-to-credit [state]
-  (assoc state :location :credit))
+(defn update-location [state loc]
+  (assoc state :location loc))
 
-(defn set-balances [state balances]
+(defn ensure-in-location [state loc]
+  (if (= loc (:location state))
+    (apply f state args)
+    (assoc state :error (str "Wrong location, must be in " loc))))
+
+(defn update-balances [state balances]
   (if (= :credit (:location state))
     (assoc state :balances balances)
     (assoc state :error "Must be on credit page")))
 
-(defn check-balances [balances debit-minimum debit-ratio]
+; Move to util functions, doesn't really deal with state
+(defn safe-balance? [balances debit-minimum]
+  "Checks balances and ensures it's okay to go ahead. If it's too low returns false"
   (let [{:keys [debit credit] balances}
         remaining (- debit credit)]
-    (cond
-      (< remaining debit-minimum) :error-debit-less-than-min
-      (- debit credit))))
+    (> remaining debit-minimum)))
 
-(defn pay-card [state]
-  (if ()))
+(defn update-payment [state status]
+  (case status
+    :ok (assoc state :payment :ok)
+    (assoc state :error "Improper payment update")))
 
-(-> state
-    (update-login :mfa)
-    (update-login :success)
-    (nav-to-credit)
-    (set-balances {:credit 50 :debit 80})
-    ())
+; We can just plug the action as the second parameter, and make the actions
+; communicate their results, just be explicit about it
+(defn start-login [state login-update]
+  (case login-update
+    :success (-> state
+                 (update-location :credit)
+                 (assoc :login :ok))
+    :mfa (assoc state :login :mfa)
+    (assoc state :error "Didn't receive proper login update")))
+
+(defn start-mfa [state mfa-update]
+  (case mfa-update
+    :success (-> state
+                 (update-location :credit)
+                 (assoc :login :ok))
+    :fail (assoc state :mfa :retry)
+    (assoc state :error "Didn't receive proper MFA update")))
+

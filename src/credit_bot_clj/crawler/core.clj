@@ -1,6 +1,7 @@
 (ns credit-bot-clj.crawler.core
   (:require [etaoin.api :refer [boot-driver quit headless]]
             [credit-bot-clj.crawler.actions :as actions]
+            [credit-bot-clj.crawler.actions :as S]
             [clojure.core.async :as async :refer [chan >!! <!! >! <! take! put!]]
             [clojure.tools.logging :as log]))
 
@@ -8,6 +9,16 @@
   (if debug?
     (boot-driver :chrome {:path "chromedriver.exe"})
     (headless)))
+
+; Maybe we should pass vectors that represent how to find the args in our
+; state! Then pretty much everything would be captured there
+(defn exec-action [state-updater action! & args]
+  "This awesome function pairs actions and state manipulation"
+  (fn [state]
+    (let [driver (:driver @state)]
+      (swap! state state-updater (apply action! driver args)))))
+
+(def login (exec-action S/start-login actions/login!))
 
 (defn make-crawler
   ([user password]
@@ -28,7 +39,7 @@
         (log/info "STARTING CRAWLER")
         (swap! state assoc :started true)
         (swap! state assoc :driver (start-driver! (:debug? opts)))
-        (actions/login! (:driver @state) user password)
+        (login state user password)
         (while (actions/mfa-page?! (:driver @state))
           (do
             (>! mfa-code-req :req)
