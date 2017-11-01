@@ -64,7 +64,7 @@
     ; TODO: Add some type of check
     :success))
 
-(defn extract-amounts! [driver]
+(defn- extract-amounts [driver]
   (let [rows (query-all driver {:tag "tr"})
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
@@ -75,4 +75,4 @@
      :checking (parse-money-line checking-row)}))
 
 ; As long as the driver is output, we can compose these actions nicely
-(def get-amounts! (comp extract-amounts! nav-to-credit))
+(def get-amounts! (comp extract-amounts nav-to-credit))
