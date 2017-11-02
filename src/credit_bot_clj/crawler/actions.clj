@@ -2,12 +2,21 @@
   (:require [etaoin.api :refer :all]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
+(defn- handle-exception [f]
+  (fn [& args]
+    (try
+      (let [result (apply f args)]
+        (if (:error result)
+          result
+          {:success result})
+      (catch Exception e {:error e})))))
+
 (defn- mfa-page? [driver]
   (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
     (wait 3)
     (= MFA-URL (get-url driver))))
 
-(defn login! [driver credentials]
+(defn- login [driver credentials]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
     (go driver LOGIN_URL))
   (let [USERNAME-INPUT {:id "ctlSignon_txtUserID"}
@@ -19,23 +28,17 @@
     (click driver LOGIN-BTN)
     ; There is also a bad login state that we should check for here
     (if (mfa-page? driver)
-      ; Instead of returning mfa, we should call out failure explicity, and put
-      ; MFA as a response buried within the success payload. How else do we handle
-      ; the situation when we enter bad credentials?
       :mfa
-      :success)))
+      :logged-in)))
 
-(defn login-with-code! [driver code]
+(defn- login-with-code [driver code]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
     (fill driver CODE-INPUT code)
     (click driver CONTINUE-BTN)
     (if (mfa-page? driver)
-      :fail
-      ; Success should really be defined as on the payment page. Which we don't check for
-      ; We should have a function that waits for n secs and then returns the URL
-      ; for maximum flexibility
-      :success)))
+      :incorrect-code
+      :logged-in)))
 
 (defn- nav-to-credit [driver]
   (let [VISA-TABLE {:id "visaTable"}
@@ -50,7 +53,7 @@
     (click driver CONTINUE-BTN)
     driver))
 
-(defn pay! [driver amount]
+(defn- pay [driver amount]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
@@ -62,17 +65,17 @@
     (click driver CONTINUE-BTN)
     (click driver CONFIRM_BTN)
     ; TODO: Add some type of check
-    :success))
+    ))
 
 (defn- extract-amounts [driver]
   (let [rows (query-all driver {:tag "tr"})
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
     ; TODO: Add some type of check
-    ; Even though we return a response, it should be encapsulated in
-    ; something that can represent failure
     {:credit (parse-money-line credit-row)
      :checking (parse-money-line checking-row)}))
 
-; As long as the driver is output, we can compose these actions nicely
-(def get-amounts! (comp extract-amounts nav-to-credit))
+(def get-amounts!     (comp handle-exception extract-amounts nav-to-credit))
+(def pay!             (comp handle-exception pay))
+(def login-with-code! (comp handle-exception login-with-code))
+(def login!           (comp handle-exception login))
