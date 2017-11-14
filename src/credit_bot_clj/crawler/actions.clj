@@ -2,12 +2,14 @@
   (:require [etaoin.api :refer :all]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
-(defn- handle-exception [result]
-  (try
-    (if (:error result)
-      result
-      {:success result})
-    (catch Exception e {:error e})))
+(defn- handle-exception [f]
+  (fn [& args]
+    (try
+      (let [result (apply f args)]
+        (if (:error result)
+          result
+          {:success result})
+      (catch Exception e {:error e})))))
 
 (defn- mfa-page? [driver]
   (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
@@ -74,7 +76,7 @@
     {:credit (parse-money-line credit-row)
      :checking (parse-money-line checking-row)}))
 
-(def get-amounts!     (comp handle-exception extract-amounts nav-to-credit))
-(def pay!             (comp handle-exception pay))
-(def login-with-code! (comp handle-exception login-with-code))
-(def login!           (comp handle-exception login))
+(def get-amounts!     (handle-exception (comp extract-amounts nav-to-credit)))
+(def pay!             (handle-exception pay))
+(def login-with-code! (handle-exception login-with-code))
+(def login!           (handle-exception login))
