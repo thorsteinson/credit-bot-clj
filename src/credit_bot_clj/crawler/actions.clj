@@ -11,10 +11,16 @@
           {:success result})
       (catch Exception e {:error e})))))
 
-(defn- mfa-page? [driver]
-  (let [MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"]
-    (wait 3)
-    (= MFA-URL (get-url driver))))
+(defn get-page [driver]
+  (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
+        MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
+        ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
+    (wait 1)
+    (case (get-url driver)
+      LOGIN-URL :login
+      MFA-URL :mfa
+      ACCOUNT-URL :account
+      :unknown)))
 
 (defn- login [driver credentials]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
@@ -27,10 +33,11 @@
           (fill USERNAME-INPUT username)
           (fill PASSWORD-INPUT password)
           (click LOGIN-BTN))
-    ; There is also a bad login state that we should check for here
-    (if (mfa-page? driver)
-      :mfa
-      :logged-in)))
+    (case (get-page driver)
+      :mfa {:success :mfa}
+      :account {:success :account}
+      :login {:success :login}
+      {:error "Login Error"})))
 
 (defn- login-with-code [driver code]
   (let [CODE-INPUT {:id "challengeAnswer"}
@@ -38,9 +45,10 @@
     (doto driver
           (fill CODE-INPUT code)
           (click  CONTINUE-BTN))
-    (if (mfa-page? driver)
-      :incorrect-code
-      :logged-in)))
+    (case (get-page driver)
+      :account {:success :account}
+      :mfa {:success :mfa}
+      {:error "Redirected to unkown page"})))
 
 (defn- nav-to-credit [driver]
   (let [VISA-TABLE {:id "visaTable"}
@@ -72,16 +80,15 @@
         pattern (re-pattern valid-str)]
     (wait 1)
     (if (re-find pattern text)
-      {:success nil}
+      {:success true}
       {:error "Didn't recieve validation message from BECU"})))
 
 (defn- extract-amounts [driver]
   (let [rows (query-all driver {:tag "tr"})
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
-    ; TODO: Add some type of check
-    {:credit (parse-money-line credit-row)
-     :checking (parse-money-line checking-row)}))
+    {:success {:credit (parse-money-line credit-row)
+               :checking (parse-money-line checking-row)}}))
 
 (def get-amounts!     (handle-exception (comp extract-amounts nav-to-credit)))
 (def pay!             (handle-exception pay))
