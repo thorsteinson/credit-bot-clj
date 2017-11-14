@@ -11,7 +11,7 @@
           {:success result})
       (catch Exception e {:error e})))))
 
-(defn get-page [driver]
+(defn- get-page [driver]
   (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
         MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
         ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
