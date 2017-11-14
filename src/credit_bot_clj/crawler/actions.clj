@@ -64,9 +64,16 @@
           (fill OTHER-INPUT amount)
           (click [FREQ-SELECT {:tag "option" :index 2}])
           (click CONTINUE-BTN)
-          (click CONFIRM_BTN))
-    ; TODO: Add some type of check
-    ))
+          (click CONFIRM_BTN)))
+  (let [text (get-element-text driver
+              {:class "instructions container"
+              :tag "div"})
+        valid-str "Your payment request has been submitted"
+        pattern (re-pattern valid-str)]
+    (wait 1)
+    (if (re-find pattern text)
+      {:success nil}
+      {:error "Didn't recieve validation message from BECU"})))
 
 (defn- extract-amounts [driver]
   (let [rows (query-all driver {:tag "tr"})
