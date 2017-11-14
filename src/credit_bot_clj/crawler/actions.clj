@@ -23,9 +23,10 @@
         PASSWORD-INPUT {:id "ctlSignon_txtPassword"}
         LOGIN-BTN {:id "ctlSignon_btnLogin"}
         {:keys [username password]} credentials]
-    (fill driver USERNAME-INPUT username)
-    (fill driver PASSWORD-INPUT password)
-    (click driver LOGIN-BTN)
+    (doto driver
+          (fill USERNAME-INPUT username)
+          (fill PASSWORD-INPUT password)
+          (click LOGIN-BTN))
     ; There is also a bad login state that we should check for here
     (if (mfa-page? driver)
       :mfa
@@ -34,8 +35,9 @@
 (defn- login-with-code [driver code]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
-    (fill driver CODE-INPUT code)
-    (click driver CONTINUE-BTN)
+    (doto driver
+          (fill CODE-INPUT code)
+          (click  CONTINUE-BTN))
     (if (mfa-page? driver)
       :incorrect-code
       :logged-in)))
@@ -45,13 +47,11 @@
         PAY-BTN {:id "btnPayNow"}
         CONTINUE-BTN {:id "ctlWorkflow_btnAddNext"}
         ACCOUNT-SELECT {:id "ctlWorkflow_ddlAddFromAccount"}]
-    (click driver [VISA-TABLE
-                   {:class "item"}
-                   {:tag "a"}])
-    (click driver PAY-BTN)
-    (click driver [ACCOUNT-SELECT {:tag "option" :index 2}])
-    (click driver CONTINUE-BTN)
-    driver))
+    (doto driver
+          (click [VISA-TABLE {:class "item"} {:tag "a"}])
+          (click PAY-BTN)
+          (click [ACCOUNT-SELECT {:tag "option" :index 2}])
+          (click CONTINUE-BTN))))
 
 (defn- pay [driver amount]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
@@ -59,11 +59,12 @@
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
         CONTINUE-BTN {:id "ctlWorkflow_btnAddVerifyAddTransfer"}
         CONFIRM_BTN {:id "ctlWorkflow_btnAddConfirmAddPayment"}]
-    (click driver OTHER-AMOUNT)
-    (fill driver OTHER-INPUT amount)
-    (click driver [FREQ-SELECT {:tag "option" :index 2}])
-    (click driver CONTINUE-BTN)
-    (click driver CONFIRM_BTN)
+    (doto driver
+          (click OTHER-AMOUNT)
+          (fill OTHER-INPUT amount)
+          (click [FREQ-SELECT {:tag "option" :index 2}])
+          (click CONTINUE-BTN)
+          (click CONFIRM_BTN))
     ; TODO: Add some type of check
     ))
 
