@@ -1,45 +1,16 @@
 (ns credit-bot-clj.crawler.state)
 
-(defn logged-in? [state]
-  (= :success (:login state)))
-
-(defn update-login [state login-update]
-  (case login-update
-    :mfa (assoc state :login login-update)
-    :success (assoc state :login login-update)
-    (assoc state :error (str "Improper login update: " login-update))))
+(def init-state
+  {:login :login})
 
 (defn handle-error [f]
   "Looks for an error key and prints that rather than executing the logic"
   (fn [state & args]
     (let [new-state (apply f state args)
-          error (:error state)]
+          error (:error new-state)]
       (if error
         (throw (Exeception. (str "Encountered error: " error)))
         state))))
-
-(defn ensure-logged-in [f]
-  "Higher order function that writes error to state if the user isn't logged in"
-  (fn [state & args]
-    (if (logged-in? state)
-      (apply f state args)
-      (assoc state :error "Must be logged in"))))
-
-(defn mfa? [state]
-  (= :mfa (:login state)))
-
-(defn update-location [state loc]
-  (assoc state :location loc))
-
-(defn ensure-in-location [state loc]
-  (if (= loc (:location state))
-    (apply f state args)
-    (assoc state :error (str "Wrong location, must be in " loc))))
-
-(defn update-balances [state balances]
-  (if (= :credit (:location state))
-    (assoc state :balances balances)
-    (assoc state :error "Must be on credit page")))
 
 ; Move to util functions, doesn't really deal with state
 (defn safe-balance? [balances debit-minimum]
@@ -48,26 +19,80 @@
         remaining (- debit credit)]
     (> remaining debit-minimum)))
 
-(defn update-payment [state status]
-  (case status
-    :ok (assoc state :payment :ok)
-    (assoc state :error "Improper payment update")))
+(defn- success-wrapper [handler]
+  "Helps with unwrapping updates from actions so they can be passed off to pure functions and the errors are written out to state if found"
+  (fn [state handler-update]
+    (let [result (:success handler-update)]
+      (if result
+        (handler result)
+        ; Error case
+        (merge state handler-update)))))
 
-; We can just plug the action as the second parameter, and make the actions
-; communicate their results, just be explicit about it
-(defn start-login [state login-update]
-  (case login-update
-    :success (-> state
-                 (update-location :credit)
-                 (assoc :login :ok))
+(defn- handle-login-update [state result]
+  (case result
     :mfa (assoc state :login :mfa)
-    (assoc state :error "Didn't receive proper login update")))
+    :acount (assoc state :login :complete)
+    :login (assoc state :login :retry)
+    (assoc state :error (str "Uknown update recieved: " result))))
 
-(defn start-mfa [state mfa-update]
-  (case mfa-update
-    :success (-> state
-                 (update-location :credit)
-                 (assoc :login :ok))
-    :fail (assoc state :mfa :retry)
-    (assoc state :error "Didn't receive proper MFA update")))
+(defn- handle-code-request [state code]
+  (assoc state :code code))
 
+(defn- handle-mfa-update [state result]
+  (case result
+    :mfa (assoc state :login :retry-code)
+    :account (assoc :login :complete)
+    (assoc state :error (str "Unkown update recieved: " result))))
+
+(defn- handle-amount-update [state balances]
+  (if (safe-balance? balances)
+    (merge state balances)
+    (assoc state :error (str "Balances aren't high enough: " balances))))
+
+(defn- handle-confirmation-update [state confirmation]
+  (assoc state :transaction-approval confirmation))
+
+(defn- handle-payment-update [state payment]
+   (assoc state :payment payment))
+
+
+
+
+
+; Example of how state progresses
+(-> init-state
+    ; Login without issue
+    (start-login :account)
+    ; Get the balances
+    (start-get-amounts {:credit 100 :debit 1000})
+    ; Get a confirmation from the user
+    (start-get-confirmation true)
+    ; Actually make the payment
+    (start-pay true))
+
+;;;;; Predicate Functions
+(defn- logged-in? [state]
+  (= :complete (:login state)))
+
+(defn- must-have [pred handler]
+  "Creates a handler that must have the specified predicate, or an error is returned"
+  (fn [state handler-update]
+    (if (pred state)
+      (handler state handler-update)
+      (assoc state :error (str "Missing required key: " k)))))
+
+
+(defn- make-handler
+  [handler k]
+  (comp success-wrapper
+        (partial must-have k))
+  [handler]
+  (success-wrapper handler))
+
+;;;;; Exposed functions with all the bells and whistles composed
+(def exec-login (make-handler handle-login-update))
+(def exec-request-code (make-handler handle-code-request logged-in?))
+(def exec-mfa (make-handler handle-mfa-update))
+(def exec-get-amounts (make-handler handle-amount-update logged-in?))
+(def exec-confirmation (make-handler handle-confirmation-update :balances))
+(def exec-payment (make-handler handle-payment-update :confirmation))
