@@ -3,14 +3,6 @@
 (def init-state
   {:login :login})
 
-(defn handle-error [f]
-  "Looks for an error key and prints that rather than executing the logic"
-  (fn [state & args]
-    (let [new-state (apply f state args)
-          error (:error new-state)]
-      (if error
-        (throw (Exeception. (str "Encountered error: " error)))
-        state))))
 
 ; Move to util functions, doesn't really deal with state
 (defn safe-balance? [balances debit-minimum]
@@ -18,6 +10,24 @@
   (let [{:keys [debit credit] balances}
         remaining (- debit credit)]
     (> remaining debit-minimum)))
+
+
+;;;;;;; Higher Order Functions
+(defn- must-have [pred handler]
+  "Creates a handler that must have the specified predicate, or an error is returned"
+  (fn [state handler-update]
+    (if (pred state)
+      (handler state handler-update)
+      (assoc state :error (str "Missing required key: " k)))) 
+
+(defn handle-error [f]
+  "Looks for an error key and prints that rather than executing the logic"
+  (fn [state & args]
+    (let [new-state (apply f state args)
+          error (:error new-state)]
+      (if error
+        (throw (Exeception. (str "Encountered error: " error)))
+        state))) 
 
 (defn- success-wrapper [handler]
   "Helps with unwrapping updates from actions so they can be passed off to pure functions and the errors are written out to state if found"
@@ -28,6 +38,14 @@
         ; Error case
         (merge state handler-update)))))
 
+(defn- make-handler
+  [handler k]
+  (comp success-wrapper
+        (partial must-have k))
+  [handler]
+  (success-wrapper handler))
+
+;;;;;;; Handlers
 (defn- handle-login-update [state result]
   (case result
     :mfa (assoc state :login :mfa)
@@ -55,39 +73,10 @@
 (defn- handle-payment-update [state payment]
    (assoc state :payment payment))
 
-
-
-
-
-; Example of how state progresses
-(-> init-state
-    ; Login without issue
-    (start-login :account)
-    ; Get the balances
-    (start-get-amounts {:credit 100 :debit 1000})
-    ; Get a confirmation from the user
-    (start-get-confirmation true)
-    ; Actually make the payment
-    (start-pay true))
-
 ;;;;; Predicate Functions
 (defn- logged-in? [state]
   (= :complete (:login state)))
 
-(defn- must-have [pred handler]
-  "Creates a handler that must have the specified predicate, or an error is returned"
-  (fn [state handler-update]
-    (if (pred state)
-      (handler state handler-update)
-      (assoc state :error (str "Missing required key: " k)))))
-
-
-(defn- make-handler
-  [handler k]
-  (comp success-wrapper
-        (partial must-have k))
-  [handler]
-  (success-wrapper handler))
 
 ;;;;; Exposed functions with all the bells and whistles composed
 (def exec-login (make-handler handle-login-update))
