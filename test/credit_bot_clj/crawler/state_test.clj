@@ -24,3 +24,18 @@
             (exec-login {:error "This is a problem"})
             (exec-mfa {:error "Another error"}))
         (merge init-state {:error "This is a problem"}))))
+
+(deftest respects-debit-minimum
+  (let [state {:login :complete
+               :debit-minimum 1000
+               :code 1232 }
+        low-balances {:credit 100 :debit 100}
+        high-balances {:credit 100 :debit 1200}]
+    (is (:error (exec-get-amounts state {:success low-balances}))
+        "The debit minimum should trigger an error")
+    (is (nil? (:error (exec-get-amounts state {:success high-balances})))
+        "The high balance reaches the debit minimum and should succeed" )))
+
+(deftest must-have-confirmation-to-pay
+  (let [state {}]
+    (is (:error (exec-payment state {:success :something})))))
