@@ -2,15 +2,6 @@
   (:require [etaoin.api :refer :all]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
-(defn- handle-exception [f]
-  (fn [& args]
-    (try
-      (let [result (apply f args)]
-        (if (:error result)
-          result
-          {:success result})
-      (catch Exception e {:error e})))))
-
 (defn- get-page [driver]
   (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
         MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
@@ -34,10 +25,10 @@
           (fill PASSWORD-INPUT password)
           (click LOGIN-BTN))
     (case (get-page driver)
-      :mfa {:success :mfa}
-      :account {:success :account}
-      :login {:success :login}
-      {:error "Login Error"})))
+      :mfa :mfa
+      :account :account
+      :login :login
+      (throw Exception. (str "Login error recieved unknown keyword: " (get-page driver))))))
 
 (defn- login-with-code [driver code]
   (let [CODE-INPUT {:id "challengeAnswer"}
@@ -46,10 +37,11 @@
           (fill CODE-INPUT code)
           (click  CONTINUE-BTN))
     (case (get-page driver)
-      :account {:success :account}
-      :mfa {:success :mfa}
-      {:error "Redirected to unkown page"})))
+      :account :account
+      :mfa :mfa
+      (throw Exception. "Redirected to unknown page" ))))
 
+; TODO: Add a check here, how did I miss this?
 (defn- nav-to-credit [driver]
   (let [VISA-TABLE {:id "visaTable"}
         PAY-BTN {:id "btnPayNow"}
@@ -79,9 +71,8 @@
         valid-str "Your payment request has been submitted"
         pattern (re-pattern valid-str)]
     (wait 1)
-    (if (re-find pattern text)
-      {:success true}
-      {:error "Didn't recieve validation message from BECU"})))
+    (if-not (re-find pattern text)
+      (throw Exception. "Didn't recieve validation message from BECU" ))))
 
 (defn- extract-amounts [driver]
   (let [rows (query-all driver {:tag "tr"})
@@ -90,7 +81,7 @@
     {:success {:credit (parse-money-line credit-row)
                :checking (parse-money-line checking-row)}}))
 
-(def get-amounts!     (handle-exception (comp extract-amounts nav-to-credit)))
-(def pay!             (handle-exception pay))
-(def login-with-code! (handle-exception login-with-code))
-(def login!           (handle-exception login))
+(def get-amounts!     (comp extract-amounts nav-to-credit))
+(def pay!             pay)
+(def login-with-code! login-with-code)
+(def login!           login)
