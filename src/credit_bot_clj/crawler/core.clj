@@ -6,12 +6,6 @@
             [clojure.core.async :as async :refer [chan >!! <!! >! <! take! put!]]
             [clojure.tools.logging :as log]))
 
-(defn start-driver! [debug?]
-  (if debug?
-    (boot-driver :chrome {:path "chromedriver.exe"})
-    (headless)))
-
-
 ; TODO: double check that this function is written properly now
 (defn exec-action [state-updater action!]
   "This awesome function pairs actions and state manipulation"
