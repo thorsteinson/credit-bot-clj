@@ -64,7 +64,7 @@
         (doto state
               start-driver!
               attempt-login!)
-        (while (not= :complete (:login @state))
+        (while (not= (S/logged-in? @state))
           (doto state
                 request-code!
                 attempt-mfa!))
