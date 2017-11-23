@@ -2,7 +2,7 @@
   (:require [etaoin.api :refer :all]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
-(defn- get-page [{:keys [driver]} state]
+(defn- get-page [{:keys [driver]}]
   (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
         MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
         ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
@@ -13,7 +13,7 @@
       ACCOUNT-URL :account
       :unknown)))
 
-(defn- login [{:keys [driver credentials]} state]
+(defn- login [{:keys [driver credentials]}]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
     (go driver LOGIN_URL))
   (let [USERNAME-INPUT {:id "ctlSignon_txtUserID"}
@@ -30,7 +30,7 @@
       :login :login
       (throw Exception. (str "Login error recieved unknown keyword: " (get-page driver))))))
 
-(defn- login-with-code [{:keys [driver code]} state]
+(defn- login-with-code [{:keys [driver code]}]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
     (doto driver
@@ -42,7 +42,7 @@
       (throw Exception. "Redirected to unknown page" ))))
 
 ; TODO: Add a check here, how did I miss this?
-(defn- nav-to-credit [{:keys [driver]} state]
+(defn- nav-to-credit [{:keys [driver] :as state}]
   (let [VISA-TABLE {:id "visaTable"}
         PAY-BTN {:id "btnPayNow"}
         OTHER-AMOUNT-TOGGLE {:id "ctlWorkflow_rdoPrincipalOnly1"}
@@ -57,12 +57,14 @@
           (click CONTINUE-BTN))))
 
 ; TODO: Check that the params are nested properly
-(defn- pay [{{:keys [credit] :balances} :keys [amount-override]} state]
+(defn- pay [state]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
         CONTINUE-BTN {:id "ctlWorkflow_btnAddVerifyAddTransfer"}
         CONFIRM_BTN {:id "ctlWorkflow_btnAddConfirmAddPayment"}
+        amount-override (:amount-override state)
+        credit (get-in state [:balances :credit])
         amount (if amount-override
                  amount-override
                  credit)]
@@ -81,14 +83,14 @@
     (if-not (re-find pattern text)
       (throw Exception. "Didn't recieve validation message from BECU" ))))
 
-(defn- extract-amounts [{:keys [driver]} state]
+(defn- extract-amounts [{:keys [driver]}]
   (let [rows (query-all driver {:tag "tr"})
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
     {:credit (parse-money-line credit-row)
      :checking (parse-money-line checking-row)}))
 
-(defn start-driver! [{:keys debug?} state]
+(defn start-driver! [{:keys [debug?]}]
   (if debug?
     (boot-driver :chrome {:path "chromedriver.exe"})
     (headless)))
