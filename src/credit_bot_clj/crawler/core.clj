@@ -1,7 +1,8 @@
 (ns credit-bot-clj.crawler.core
   (:require [etaoin.api :refer [boot-driver quit headless]]
             [credit-bot-clj.crawler.actions :as actions]
-            [credit-bot-clj.crawler.actions :as S]
+            [credit-bot-clj.crawler.state :as S]
+            [credit-bot-clj.utils :as util :refer [req req-res]]
             [clojure.core.async :as async :refer [chan >!! <!! >! <! take! put!]]
             [clojure.tools.logging :as log]))
 
@@ -10,21 +11,20 @@
     (boot-driver :chrome {:path "chromedriver.exe"})
     (headless)))
 
-; Maybe we should pass vectors that represent how to find the args in our
-; state! Then pretty much everything would be captured there
-(defn exec-action [state-updater action! & args]
+
+; TODO: double check that this function is written properly now
+(defn exec-action [state-updater action!]
   "This awesome function pairs actions and state manipulation"
   (fn [state]
-    (let [driver (:driver @state)]
-      (swap! state state-updater (apply action! driver args)))))
+    (swap! state state-updater (action! state))))
 
-(def login (exec-action S/start-login actions/login!))
 
 (defn make-crawler
-  ([user password]
-    (make-crawler user password {:debug? false}))
-  ([user password opts]
-    (let [start-req (chan 1)
+  ([credentials]
+    (make-crawler credentials {:debug? false}))
+  ([user credentials opts]
+    (let [;; Channels
+          start-req (chan 1)
           finish-res (chan 1)
           mfa-code-res (chan 1)
           mfa-code-req (chan 1)
@@ -32,27 +32,46 @@
           amount-out (chan 1)
           transaction-req (chan 1)
           transaction-res (chan 1)
-          init-state {:started false}
-          state (atom init-state) ]
+
+          ;; Requests
+          request-mfa-code (req-res mfa-code-req mfa-code-res)
+          request-confirmation (req-res transaction-req transaction-res)
+
+          ;; Composed Functions
+          start-driver! (exec-action S/exec-start-driver
+                                     actions/start-driver!)
+          attempt-login! (exec-action S/exec-login action
+                                      actions/login!)
+          request-code! (exec-action S/exec-request-code
+                                     request-mfa-code)
+          attempt-mfa-login! (exec-action S/exec-mfa
+                                          actions/login-with-code!)
+          get-amounts! (exec-action S/exec-get-amounts
+                                    actions/get-amounts!)
+          request-confirmation! (exec-action S/exec-confirmation
+                                             request-confirmation)
+          pay! (exec-action S/exec-payment
+                            actions/pay!)
+
+          ;; Etc
+          init-state (merge opts
+                            {:started false
+                             :credentials credentials})
+          state (atom init-state)]
+
       (async/go-loop []
-        (<! start-req)
         (log/info "STARTING CRAWLER")
-        (swap! state assoc :started true)
-        (swap! state assoc :driver (start-driver! (:debug? opts)))
-        (login state user password)
-        (while (actions/mfa-page?! (:driver @state))
-          (do
-            (>! mfa-code-req :req)
-            (log/info "REQUESTED MFA")
-            (actions/enter-mfa-code! (:driver @state) (<! mfa-code-res))))
-        (actions/nav-to-credit! (:driver @state))
-        (swap! state assoc :payment (actions/extract-amounts! (:driver @state)))
-        (>! transaction-req :trans-req) 
-        (log/info "Waiting for transaction approval response")
-        (<! transaction-res) 
-        (actions/exec-payment! (:driver @state)
-                               (get-in @state [:payment :credit]))
-        (log/info "STOPPING CRAWLER")
+        (doto state
+              start-driver!
+              attempt-login!)
+        (while (not= :complete (:login @state))
+          (doto state
+                request-code!
+                attempt-mfa!))
+        (doto state
+              get-amounts!
+              request-confirmation!
+              pay!)
         (quit (:driver @state))
         (reset! state init-state)
         (recur))

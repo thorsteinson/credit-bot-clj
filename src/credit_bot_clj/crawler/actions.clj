@@ -2,7 +2,7 @@
   (:require [etaoin.api :refer :all]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
-(defn- get-page [driver]
+(defn- get-page [{:keys [driver]}]
   (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
         MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
         ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
@@ -13,7 +13,7 @@
       ACCOUNT-URL :account
       :unknown)))
 
-(defn- login [driver credentials]
+(defn- login [{:keys driver credentials}]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
     (go driver LOGIN_URL))
   (let [USERNAME-INPUT {:id "ctlSignon_txtUserID"}
@@ -30,7 +30,7 @@
       :login :login
       (throw Exception. (str "Login error recieved unknown keyword: " (get-page driver))))))
 
-(defn- login-with-code [driver code]
+(defn- login-with-code [{:keys driver code}]
   (let [CODE-INPUT {:id "challengeAnswer"}
         CONTINUE-BTN {:id "mfa_btnAnswerChallenge"}]
     (doto driver
@@ -42,7 +42,7 @@
       (throw Exception. "Redirected to unknown page" ))))
 
 ; TODO: Add a check here, how did I miss this?
-(defn- nav-to-credit [driver]
+(defn- nav-to-credit [{:keys driver}]
   (let [VISA-TABLE {:id "visaTable"}
         PAY-BTN {:id "btnPayNow"}
         CONTINUE-BTN {:id "ctlWorkflow_btnAddNext"}
@@ -53,7 +53,7 @@
           (click [ACCOUNT-SELECT {:tag "option" :index 2}])
           (click CONTINUE-BTN))))
 
-(defn- pay [driver amount]
+(defn- pay [{:keys driver {:keys balances}}]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
@@ -74,12 +74,17 @@
     (if-not (re-find pattern text)
       (throw Exception. "Didn't recieve validation message from BECU" ))))
 
-(defn- extract-amounts [driver]
+(defn- extract-amounts [{:keys driver}]
   (let [rows (query-all driver {:tag "tr"})
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
-    {:success {:credit (parse-money-line credit-row)
-               :checking (parse-money-line checking-row)}}))
+    {:credit (parse-money-line credit-row)
+     :checking (parse-money-line checking-row)}))
+
+(defn start-driver! [{:keys debug?}]
+  (if debug?
+    (boot-driver :chrome {:path "chromedriver.exe"})
+    (headless)))
 
 (def get-amounts!     (comp extract-amounts nav-to-credit))
 (def pay!             pay)

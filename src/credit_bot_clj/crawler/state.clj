@@ -17,7 +17,7 @@
   (fn [state handler-update]
     (if (pred state)
       (handler state handler-update)
-      (throw Exception. (str "Missing required key: " pred)))))
+      (throw (Exception. (str "Missing required key: " pred))))))
 
 ;;;;;;; Handlers
 (defn- handle-login-update [state result]
@@ -25,7 +25,7 @@
     :mfa (assoc state :login :mfa)
     :acount (assoc state :login :complete)
     :login (assoc state :login :retry)
-    (throw Exception. (str "Uknown update recieved: " result))))
+    (throw (Exception. (str "Uknown update recieved: " result)))))
 
 (defn- handle-code-request [state code]
   (assoc state :code code))
@@ -34,12 +34,12 @@
   (case result
     :retry-code (assoc state :login :mfa)
     :account (assoc state :login :complete)
-    (throw Exception. (str "Unkown update recieved: " result))))
+    (throw (Exception. (str "Unkown update recieved: " result)))))
 
 (defn- handle-amount-update [state balances]
   (if (safe-balance? balances (:debit-minimum state))
     (assoc state :balances balances)
-    (throw Exception. (str "Balances aren't high enough: " balances))))
+    (throw (Exception. (str "Balances aren't high enough: " balances)))))
 
 (defn- handle-confirmation-update [state confirmation]
   (assoc state :transaction-approval confirmation))
@@ -54,10 +54,13 @@
 (defn- mfa? [state]
   (= :mfa (:login state)))
 
+
 ;;;;; Exposed functions with all the bells and whistles composed
+(defn exec-start-driver [state driver]
+  (assoc state :driver driver))
 (def exec-login handle-login-update)
-(def exec-request-code (must-have handle-code-request mfa?))
+(def exec-request-code (must-have mfa? handle-code-request))
 (def exec-mfa handle-mfa-update)
-(def exec-get-amounts (must-have handle-amount-update logged-in?))
-(def exec-confirmation (must-have handle-confirmation-update :balances))
-(def exec-payment (must-have handle-payment-update :transaction-approval))
+(def exec-get-amounts (must-have logged-in? handle-amount-update))
+(def exec-confirmation (must-have :balances handle-confirmation-update))
+(def exec-payment (must-have :transaction-approval handle-payment-update))
