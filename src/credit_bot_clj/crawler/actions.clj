@@ -54,7 +54,8 @@
           (click [VISA-TABLE {:class "item"} {:tag "a"}])
           (click PAY-BTN)
           (click [ACCOUNT-SELECT {:tag "option" :index 2}])
-          (click CONTINUE-BTN))))
+          (click CONTINUE-BTN))
+    state))
 
 ; TODO: Check that the params are nested properly
 (defn- pay [state]
