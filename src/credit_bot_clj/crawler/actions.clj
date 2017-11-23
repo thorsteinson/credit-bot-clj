@@ -53,7 +53,7 @@
           (click [ACCOUNT-SELECT {:tag "option" :index 2}])
           (click CONTINUE-BTN))))
 
-(defn- pay [{:keys driver {:keys balances}}]
+(defn- pay [state]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
