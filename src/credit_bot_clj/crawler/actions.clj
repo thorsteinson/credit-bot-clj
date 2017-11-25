@@ -2,16 +2,17 @@
   (:require [etaoin.api :refer :all]
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
-(defn- get-page [{:keys [driver]}]
+(defn- get-page [driver]
   (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
         MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
         ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
     (wait 1)
-    (case (get-url driver)
-      LOGIN-URL :login
-      MFA-URL :mfa
-      ACCOUNT-URL :account
-      :unknown)))
+    (let [url (get-url driver)]
+      (case url
+            LOGIN-URL :login
+            MFA-URL :mfa
+            ACCOUNT-URL :account
+            url))))
 
 (defn- login [{:keys [driver credentials]}]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
@@ -24,11 +25,10 @@
           (fill USERNAME-INPUT username)
           (fill PASSWORD-INPUT password)
           (click LOGIN-BTN))
-    (case (get-page driver)
-      :mfa :mfa
-      :account :account
-      :login :login
-      (throw Exception. (str "Login error recieved unknown keyword: " (get-page driver))))))
+    (let [result (get-page driver)]
+      (if (contains? (set [:login :account :mfa]) result)
+        result
+        (throw (Exception. (str "Arrived on unknown page" result)))))))
 
 (defn- login-with-code [{:keys [driver code]}]
   (let [CODE-INPUT {:id "challengeAnswer"}
@@ -36,10 +36,11 @@
     (doto driver
           (fill CODE-INPUT code)
           (click  CONTINUE-BTN))
-    (case (get-page driver)
-      :account :account
-      :mfa :mfa
-      (throw Exception. "Redirected to unknown page" ))))
+    (let [result (get-page driver)]
+      (case result
+            :account :account
+            :mfa :mfa
+            (throw (Exception. (str "Redirected to unknown page " result)))))))
 
 ; TODO: Add a check here, how did I miss this?
 (defn- nav-to-credit [{:keys [driver] :as state}]
@@ -58,7 +59,7 @@
     state))
 
 ; TODO: Check that the params are nested properly
-(defn- pay [state]
+(defn- pay [{:keys [driver] :as state}]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}
         FREQ-SELECT {:id "ctlWorkflow_ddlAddFrequency1"}
@@ -82,7 +83,7 @@
         pattern (re-pattern valid-str)]
     (wait 1)
     (if-not (re-find pattern text)
-      (throw Exception. "Didn't recieve validation message from BECU" ))))
+      (throw (Exception. "Didn't recieve validation message from BECU")))))
 
 (defn- extract-amounts [{:keys [driver]}]
   (let [rows (query-all driver {:tag "tr"})
@@ -91,7 +92,7 @@
     {:credit (parse-money-line credit-row)
      :checking (parse-money-line checking-row)}))
 
-(defn start-driver! [{:keys [debug?]}]
+(defn start-driver! [{:keys [debug?] :as state}]
   (if debug?
     (boot-driver :chrome {:path "chromedriver.exe"})
     (headless)))

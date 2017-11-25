@@ -7,19 +7,20 @@
             [clojure.tools.logging :as log]))
 
 ; TODO: double check that this function is written properly now
-(defn exec-action [state-updater action!]
+(defn- exec-action [state-updater action!]
   "This awesome function pairs actions and state manipulation"
   (fn [state]
-    (swap! state state-updater (action! state))))
+    (println "STATE:" @state)
+    (swap! state state-updater (action! @state))))
 
 
 (defn make-crawler
   ([credentials]
     (make-crawler credentials {:debug? false}))
-  ([user credentials opts]
+  ([credentials opts]
     (let [;; Channels
           start-req (chan 1)
-          finish-res (chan 1)
+          finish-req (chan 1)
           mfa-code-res (chan 1)
           mfa-code-req (chan 1)
           status-out (chan 1)
@@ -28,13 +29,14 @@
           transaction-res (chan 1)
 
           ;; Requests
-          request-mfa-code (req-res mfa-code-req mfa-code-res)
-          request-confirmation (req-res transaction-req transaction-res)
+          request-mfa-code #(req-res mfa-code-req mfa-code-res)
+          request-confirmation #(req-res transaction-req transaction-res)
+          request-finish #(req finish-req)
 
           ;; Composed Functions
           start-driver! (exec-action S/exec-start-driver
                                      actions/start-driver!)
-          attempt-login! (exec-action S/exec-login action
+          attempt-login! (exec-action S/exec-login
                                       actions/login!)
           request-code! (exec-action S/exec-request-code
                                      request-mfa-code)
@@ -55,22 +57,25 @@
 
       (async/go-loop []
         (log/info "STARTING CRAWLER")
+        (log/info @state)
         (doto state
               start-driver!
               attempt-login!)
         (while (not= (S/logged-in? @state))
           (doto state
                 request-code!
-                attempt-mfa!))
+                attempt-mfa-login!))
         (doto state
               get-amounts!
               request-confirmation!
               pay!)
         (quit (:driver @state))
         (reset! state init-state)
+        (log/info "Got over to here")
+        (request-finish)
         (recur))
       {:start-req start-req
-       :finish-res finish-res
+       :finish-req finish-req
        :transaction-req transaction-req
        :transaction-res transaction-res
        :mfa-code-res mfa-code-res

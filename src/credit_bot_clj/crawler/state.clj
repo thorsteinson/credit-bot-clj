@@ -48,10 +48,10 @@
   (assoc state :payment payment))
 
 ;;;;; Predicate Functions
-(defn- logged-in? [state]
+(defn logged-in? [state]
   (= :complete (:login state)))
 
-(defn- mfa? [state]
+(defn mfa? [state]
   (= :mfa (:login state)))
 
 
