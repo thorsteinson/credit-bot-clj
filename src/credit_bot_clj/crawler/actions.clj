@@ -8,11 +8,10 @@
         ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
     (wait 1)
     (let [url (get-url driver)]
-      (case url
-            LOGIN-URL :login
-            MFA-URL :mfa
-            ACCOUNT-URL :account
-            url))))
+      (cond (= url LOGIN-URL) :login
+            (= url MFA-URL) :mfa
+            (= url ACCOUNT-URL) :account
+            :else url))))
 
 (defn- login [{:keys [driver credentials]}]
   (let [LOGIN_URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"]  
