@@ -9,7 +9,6 @@
 (defn- exec-action [state-updater action!]
   "This awesome function pairs actions and state manipulation"
   (fn [state]
-    (println "STATE:" @state)
     (swap! state state-updater (action! @state))))
 
 (defn- exec-req [state-updater action!]
