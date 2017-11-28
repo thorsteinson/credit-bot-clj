@@ -10,8 +10,9 @@
                 mfa-code-req
                 transaction-req
                 transaction-res]}
-        (make-crawler {:username "calebt5"
-                       :password "eaIkmhMu3TJO2T8uX8o3"}
+        (make-crawler {:username (System/getenv "BECU_USER")
+                       :password (System/getenv "BECU_PASS")}
                       {:debug? true
-                       :amount-override 0.01})]
+                       :amount-override 0.01
+                       :debit-minimum 500})]
     (println (<!! finish-req))))

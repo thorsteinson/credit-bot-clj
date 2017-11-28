@@ -23,7 +23,7 @@
 (defn- handle-login-update [state result]
   (case result
     :mfa (assoc state :login :mfa)
-    :acount (assoc state :login :complete)
+    :account (assoc state :login :complete)
     :login (assoc state :login :retry)
     (throw (Exception. (str "Uknown update recieved: " result)))))
 
@@ -37,9 +37,13 @@
     (throw (Exception. (str "Unkown update recieved: " result)))))
 
 (defn- handle-amount-update [state balances]
-  (if (safe-balance? balances (:debit-minimum state))
-    (assoc state :balances balances)
-    (throw (Exception. (str "Balances aren't high enough: " balances)))))
+  (let [{minimum :debit-minimum} state]
+    (if-not minimum
+      (throw (Exception. (str "Missing required key: :debit-minimum"))))
+    (println "BALANCES:" balances)
+    (if (safe-balance? balances minimum)
+      (assoc state :balances balances)
+      (throw (Exception. (str "Balances aren't high enough: " balances))))))
 
 (defn- handle-confirmation-update [state confirmation]
   (assoc state :transaction-approval confirmation))

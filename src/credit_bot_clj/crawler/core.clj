@@ -6,12 +6,17 @@
             [clojure.core.async :as async :refer [chan >!! <!! >! <! take! put!]]
             [clojure.tools.logging :as log]))
 
-; TODO: double check that this function is written properly now
 (defn- exec-action [state-updater action!]
   "This awesome function pairs actions and state manipulation"
   (fn [state]
     (println "STATE:" @state)
     (swap! state state-updater (action! @state))))
+
+(defn- exec-req [state-updater action!]
+  "Similar to exec-action, although note that the request doesn't take state as a parameter,
+  it in fact takes no arguments at all"
+  (fn [state]
+    (swap! state state-updater (action!))))
 
 
 (defn make-crawler
@@ -38,13 +43,13 @@
                                      actions/start-driver!)
           attempt-login! (exec-action S/exec-login
                                       actions/login!)
-          request-code! (exec-action S/exec-request-code
+          request-code! (exec-req S/exec-request-code
                                      request-mfa-code)
           attempt-mfa-login! (exec-action S/exec-mfa
                                           actions/login-with-code!)
           get-amounts! (exec-action S/exec-get-amounts
                                     actions/get-amounts!)
-          request-confirmation! (exec-action S/exec-confirmation
+          request-confirmation! (exec-req S/exec-confirmation
                                              request-confirmation)
           pay! (exec-action S/exec-payment
                             actions/pay!)

@@ -76,7 +76,7 @@
           (click CONTINUE-BTN)
           (click CONFIRM_BTN)))
   (let [text (get-element-text driver
-              {:class "instructions container"
+              {:class "instructionsContainer"
               :tag "div"})
         valid-str "Your payment request has been submitted"
         pattern (re-pattern valid-str)]
@@ -89,7 +89,7 @@
         credit-row (get-element-text-el driver (get rows 2))
         checking-row (get-element-text-el driver (get rows 3))]
     {:credit (parse-money-line credit-row)
-     :checking (parse-money-line checking-row)}))
+     :debit (parse-money-line checking-row)}))
 
 (defn start-driver! [{:keys [debug?] :as state}]
   (if debug?
