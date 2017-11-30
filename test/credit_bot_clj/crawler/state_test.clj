@@ -1,23 +1,27 @@
 (ns credit-bot-clj.crawler.state-test
   (:require [clojure.test :refer :all]
-            [credit-bot-clj.crawler.state :refer :all]))
+            [credit-bot-clj.crawler.state :as S :refer :all]
+            [clojure.spec.alpha :as s]))
+
+(s/check-asserts true)
 
 (deftest full-path
-  (is (= (-> init-state
-            (exec-login :mfa)
-            (exec-request-code 72141)
-            (exec-mfa :retry-code)
-            (exec-request-code 777)
-            (exec-mfa :account)
-            (exec-get-amounts {:credit 1000 :debit 2000})
-            (exec-confirmation true)
-            (exec-payment true))
-        (merge init-state
-                {:login :complete
-                :code 777
-                :balances {:credit 1000 :debit 2000}
-                :transaction-approval true
-                :payment true}))))
+  (let [final-state (merge init-state
+                           {:login :complete
+                           :code 777
+                           :balances {:credit 1000 :debit 2000}
+                           :transaction-approval true
+                           :payment true})]
+    (is (= (-> init-state
+              (exec-login :mfa)
+              (exec-request-code 72141)
+              (exec-mfa :retry-code)
+              (exec-request-code 777)
+              (exec-mfa :account)
+              (exec-get-amounts {:credit 1000 :debit 2000})
+              (exec-confirmation true)
+              (exec-payment true))
+           final-state))))
 
 (deftest respects-debit-minimum
   (let [state {:login :complete

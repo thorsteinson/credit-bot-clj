@@ -2,11 +2,37 @@
   (:require [clojure.spec.alpha :as s]))
 
 ;;;;;;;;;;;;; Spec Defintions
+
+;; Credentials
 (s/def ::non-empty-string (s/and string? #(not= "")))
 (s/def ::username ::non-empty-string)
 (s/def ::password ::non-empty-string)
 (s/def ::credentials (s/keys :req-un [::username ::password]))
-(s/def ::state (s/keys :req-un [::credentials]))
+
+;; Balances
+(s/def ::number+ (s/and number? (partial < 0)))
+(s/def ::credit ::number+)
+(s/def ::debit ::number+)
+(s/def ::balances (s/keys :req-un [::credit ::debit]))
+
+;; Logins
+(s/def ::login #{:complete :retry :mfa})
+(s/def ::login-update #{:mfa :account :login})
+(s/def ::mfa-update #{:retry-code :account})
+
+;; Request code
+(s/def ::code ::number+)
+
+;; Transaction approval
+(s/def ::transaction-approval #{true false})
+
+;; Etc
+(s/def ::debit-minimum :number+)
+
+(s/def ::state (s/keys :req-un [::credentials]
+                       :opt-un [::balances ::login ::code
+                                ::debit-minimum]))
+
 
 (def init-state
   {:login :login
