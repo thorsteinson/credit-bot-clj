@@ -4,7 +4,8 @@
             [credit-bot-clj.crawler.state :as S]
             [credit-bot-clj.utils :as util :refer [req req-res]]
             [clojure.core.async :as async :refer [chan >!! <!! >! <! take! put!]]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :as log]
+            [clojure.spec.alpha :as s]))
 
 (defn- exec-action [state-updater action!]
   "This awesome function pairs actions and state manipulation"
@@ -57,7 +58,7 @@
           init-state (merge opts
                             {:started false
                              :credentials credentials})
-          state (atom init-state)]
+          state (atom init-state {:validator #(s/valid? :s/state %)})]
 
       (async/go-loop []
         (<! start-req) ; Wait until we get a start signal

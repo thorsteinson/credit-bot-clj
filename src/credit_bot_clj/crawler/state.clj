@@ -1,4 +1,12 @@
-(ns credit-bot-clj.crawler.state)
+(ns credit-bot-clj.crawler.state
+  (:require [clojure.spec.alpha :as s]))
+
+;;;;;;;;;;;;; Spec Defintions
+(s/def ::non-empty-string (s/and string? #(not= "")))
+(s/def ::username ::non-empty-string)
+(s/def ::password ::non-empty-string)
+(s/def ::credentials (s/keys :req-un [::username ::password]))
+(s/def ::state (s/keys :req-un [::credentials]))
 
 (def init-state
   {:login :login
