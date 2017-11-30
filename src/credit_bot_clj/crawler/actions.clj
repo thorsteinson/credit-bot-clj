@@ -3,10 +3,10 @@
             [credit-bot-clj.utils :refer [parse-money-line]]))
 
 (defn- get-page [driver]
-  (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
+  (let [LOGIN-URL "https://onlinebanking.becu.org/BECUBankingWeb/login.aspx"
         MFA-URL "https://onlinebanking.becu.org/BECUBankingWeb/mfa/challenge.aspx"
         ACCOUNT-URL "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"]
-    (wait 1)
+    (wait 3)
     (let [url (get-url driver)]
       (cond (= url LOGIN-URL) :login
             (= url MFA-URL) :mfa
@@ -27,7 +27,7 @@
     (let [result (get-page driver)]
       (if (contains? (set [:login :account :mfa]) result)
         result
-        (throw (Exception. (str "Arrived on unknown page" result)))))))
+        (throw (Exception. (str "Arrived on unknown page: " result)))))))
 
 (defn- login-with-code [{:keys [driver code]}]
   (let [CODE-INPUT {:id "challengeAnswer"}
@@ -41,7 +41,6 @@
             :mfa :mfa
             (throw (Exception. (str "Redirected to unknown page " result)))))))
 
-; TODO: Add a check here, how did I miss this?
 (defn- nav-to-credit [{:keys [driver] :as state}]
   (let [VISA-TABLE {:id "visaTable"}
         PAY-BTN {:id "btnPayNow"}
@@ -57,7 +56,6 @@
           (click CONTINUE-BTN))
     state))
 
-; TODO: Check that the params are nested properly
 (defn- pay [{:keys [driver] :as state}]
   (let [OTHER-AMOUNT {:id "ctlWorkflow_rdoPrincipalOnly1"}
         OTHER-INPUT {:id "ctlWorkflow_txtAddTransferAmountCredit"}

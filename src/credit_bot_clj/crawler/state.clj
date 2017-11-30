@@ -17,6 +17,7 @@
   (fn [state handler-update]
     (if (pred state)
       (handler state handler-update)
+      ; Technically they could have the key, the value could be nil or false, which is behaviour that we rely on
       (throw (Exception. (str "Missing required key: " pred))))))
 
 ;;;;;;; Handlers

@@ -60,12 +60,13 @@
           state (atom init-state)]
 
       (async/go-loop []
+        (<! start-req) ; Wait until we get a start signal
         (log/info "STARTING CRAWLER")
         (log/info @state)
         (doto state
               start-driver!
               attempt-login!)
-        (while (not= (S/logged-in? @state))
+        (while (not (S/logged-in? @state))
           (doto state
                 request-code!
                 attempt-mfa-login!))
